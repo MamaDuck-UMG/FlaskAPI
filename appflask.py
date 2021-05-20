@@ -352,7 +352,10 @@ def predictPR():
     print("Para las",horauser,"con el grado",grado,"se pronostican ",int(np.around(ypred)[0]), "llamadas de emergencia")
     plt.legend(loc='upper left')
     plt.title('Prediccion modelo polinomial',None,'center')
-    plt.text(1,-3,"Para las %s en nodo: %s"%(horauser,nodouser)+", se pronostican %s "%int(np.around(ypred)[0])+"llamadas de emergencia")
+    coef=0.0
+    if float(nodouser)>2:
+        coef=(float(nodouser)*0.05)+(float(nodouser)-3)*0.39
+    plt.text(1.5,-0.85+coef,"Para las %s en nodo: %s"%(horauser,nodouser)+", se pronostican %s "%int(np.around(ypred)[0])+"llamadas de emergencia")
 
     plt.savefig('graficas/PR_result_%s_%s.png'%(nodouser,horauser),metadata={"title":"Prediccion de modelo polinomial"})
     plt.close()
