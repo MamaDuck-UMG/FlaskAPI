@@ -1,0 +1,26 @@
+Version 1:
+-4 endpoints básicos
+    -profile: intento FRACASADO de mostrar los elementos generados por los endpoints de abajo
+    -main: 
+        -Da la bienvenida por consola y con un pato ASCII
+        -en html retorna el numero 7 (para fines de prueba que si puede mostrar datos desde el json ejemplo.json)
+    -map:
+        -genera un render de pydeck en formato html y desde el endpoint lo abre en pantalla completa
+    -nodes:
+        -genera un render de pyvis en formato html y desde el endpoint lo abre en tamaño pequeño (puedes interactuar con las 
+        bolitas y ver informacion de estas)
+        -genera una tabla en formato html de Pandas Dataframe sobre informacion detallada de cada nodo
+        -Muestra desde consola cual nodo es prioritario despues de Mama Duck y el orden de revision (un arreglo)
+
+Version 2:
+-+2 endpoints get/post
+El get genera archivos train en la carpeta modelos
+El post guarda imagenes de los modelos implementados dada una hora desde el json
+ejemplo de insercion en json:
+{
+"node":"1",
+"hour":17
+
+}
+Lo anterior supone una regresion polinomial por cada nodo particular (por eso en el json se especifica "node" y "hour")
+FALTA EL ANALISIS EN CONJUNTO CON TODOS LOS NODOS (se vera en la version 3 :D )

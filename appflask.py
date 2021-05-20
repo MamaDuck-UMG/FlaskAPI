@@ -17,8 +17,15 @@ from sklearn.metrics import accuracy_score
 from queue import PriorityQueue #libreria colas de prioridad
 import math #Para los infinitos
 import warnings
+import matplotlib.pyplot as plt
+from joblib import dump, load
+
+from sklearn.linear_model import Ridge#regularizacion o penalizacion del modelo
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import make_pipeline
 from flask import Flask,jsonify,request, render_template #render template es para mostrar paginas html o js en un endpoint
 warnings.filterwarnings('ignore')
+grado=10
 ##funciones en crudo
 
 with open('ejemplo.json') as file:
@@ -220,7 +227,13 @@ def routinenodes():
 
 #https://www.youtube.com/watch?v=N9yHClPGWG4
 
-
+def rellenofaltantes(x,y):
+    x_plot = np.linspace(0,23,num=24)
+    for numero in range(0,len(x_plot)):
+        if numero not in x:
+            x.append(numero)
+            y.append(0)
+    return x,y
 
 app=Flask(__name__)
 @app.route("/main")
@@ -264,17 +277,164 @@ def profile():
     return render_template("profilef.html")#este html fue creado manualmente para unir las dos paginas
     #como si fueran componentes
     #h.run_server()
-
-@app.route("/train", methods=['GET'])
+@app.route("/upload_data", methods=['POST'])
 
 #este modelo entrenará todos los métodos y cada uno los guardará en un joblib
-def train():
+def upload_data():
 
     return "prueba"
 
 
 
 
+@app.route("/trainNumEmergencias", methods=['GET'])
+
+#este modelo entrenará todos los métodos y cada uno los guardará en un joblib
+def trainPR():
+
+    for numeronodo in strindices:
+        _,_,c,d,_,_,_=obtencionlistasJS(str(numeronodo))#obtendre todas las variables que regresa en el orden documentado
+        c,d=rellenofaltantes(c,d)
+        regresionPolinomialNumEmergencias(c,d,"trainPR-%s"%str(numeronodo),grado)
+    response={
+        'message':'Todos los modelos de regresion polinomial se han creado',
+        'carpeta':'modelos'
+    }
+    return jsonify(response)
+
+@app.route("/predictNumEmergencias", methods=['POST'])
+def predictPR():
+    #descerializar
+    req=request.get_json(force=True)
+    #datos del json POST
+        #node:1
+        #hour:16
+    nodouser=req['node']
+    horauser=req['hour']
+    if horauser<0 or horauser>23:
+        res={
+        'message':'Error, hora ingresada no válida'
+    }
+        print(res['message'])
+        return jsonify(res)
+        
+    #DAR MANTENIMIENTO SI SE INCLUYEN MAS NODOS
+    if nodouser in strindices: #validar que esta en los indices del json
+        if nodouser==1 or nodouser=='1':
+            modeloPR=load('modelos/trainPR-1.joblib')
+        elif nodouser==2 or nodouser=='2':
+            modeloPR=load('modelos/trainPR-2.joblib')
+        elif nodouser==3 or nodouser=='3':
+            modeloPR=load('modelos/trainPR-3.joblib')
+        elif nodouser==4 or nodouser=='4':
+            modeloPR=load('modelos/trainPR-4.joblib')
+    else:
+        res={
+        'message':'Error, el nodo no existe en los registros'
+    }
+        print(res['message'])
+        return jsonify(res)
+
+    #save body data
+    res_hora=np.array(horauser).reshape(-1,1)
+
+    x_plot = np.linspace(0,23,24)
+
+    X_plot = x_plot[:, np.newaxis]
+
+    y_resplot= modeloPR.predict(X_plot)
+    ypred=modeloPR.predict(res_hora)
+    _,_,x,y,_,_,_=obtencionlistasJS(str(nodouser))
+
+    plt.scatter(np.array(x), np.array(y), color='navy', s=30, marker='o', label="Datos historicos del nodo %s"%str(nodouser))
+    plt.plot(x_plot, y_resplot, color='teal', linewidth=2,label="Polinomial grado %d" % grado)
+    plt.scatter(res_hora,ypred,color="red",label="Resultado seleccionado por el usuario= hora %s:00"%horauser)
+    print("Para las",horauser,"con el grado",grado,"se pronostican ",int(np.around(ypred)[0]), "llamadas de emergencia")
+    plt.legend(loc='upper left')
+    plt.title('Prediccion modelo polinomial',None,'center')
+    plt.text(1,-3,"Para las %s en nodo: %s"%(horauser,nodouser)+", se pronostican %s "%int(np.around(ypred)[0])+"llamadas de emergencia")
+
+    plt.savefig('graficas/PR_result_%s_%s.png'%(nodouser,horauser),metadata={"title":"Prediccion de modelo polinomial"})
+    plt.close()
+
+    response={
+        'result':"Para las %s en nodo: %s"%(horauser,nodouser)+", se pronostican %s "%int(np.around(ypred)[0])+"llamadas de emergencia"
+    }
+    return jsonify(response)
+
+
+
+def regresionPolinomialNumEmergencias(X, Y, namefile,grado):#se hace una prediccion con regresion lineal
+#dado un conjunto de datos de abcisas, ordenadas, numero de hora ingresado y número de nodo en que se realiza
+    X = np.array(X).reshape(-1, 1)
+    # cada elemento solo tiene un feature
+    Y = np.array(Y)#.reshape(-1, 1)
+    #X = X[:, np.newaxis]
+    #Y = Y[:, np.newaxis]
+    #plt.scatter(x, y, color='navy', s=30, marker='o', label="puntos de training")
+    modeloPR = make_pipeline(PolynomialFeatures(grado), Ridge())#lasso
+    #make pipeline: tuberia de datos, se multiplican los features por el grado, agrupaciones de metodos
+    modeloPR.fit(X, Y)
+    dump(modeloPR,'modelos/%s.joblib'%namefile)
+    response={
+        'message':'El modelo ha sido generado: joblib',
+        'archivo':namefile
+    }
+    return jsonify(response)
+
+
+def obtencionlistasJS(numnodo):
+  #obtiene información de los archivos JSON dado un nodo a explorar
+  jnemergency=list()#guarda los strings de tipo de emergencia
+  jnumsoc=list()#cuenta las ocurrencias de horas
+  jhours=list()#guarda las horas (formato 0.00 a 23.00)
+  jndate=list()#guarda fechas
+  jrisks=list()#guarda diccionario de riesgos
+  varisk=jn1.get(numnodo)[0]['risks'][0]
+  jrisks.append(varisk)#guardo el directorio de riesgos para su posterior exploracion
+  #para jhours
+  #para jnemergency y jndate
+  for i in range(len(jn1.get(numnodo)[0]['history'])):
+    varauxem=jn1.get(numnodo)[0]['history'][i]['emergency']
+    jnemergency.append(varauxem)
+    varauxda=jn1.get(numnodo)[0]['history'][i]['date']
+    jndate.append(varauxda)
+    varauxhr=jn1.get(numnodo)[0]['history'][i]['hour']
+    varauxhr=int(varauxhr[0:2])
+    jhours.append(varauxhr)
+  #preprocesamiento para datos no repetidos en jhours
+  jhoursp=[]
+  for item in jhours:
+      if item not in jhoursp:
+          jhoursp.append(item)
+  #para jnumsoc
+  for item in jhoursp:
+    jnumsoc.append(jhours.count(item))#contamos cada hora que se haya presentado por cada 
+    #item unico de jhours preprocesado (objetivo: contar emergencias)
+  #para jndate yconvertir a datetime
+  dtdate=list()
+  for y in range(len(jndate)):
+    dtdate.append(datetime.datetime.strptime(str(jndate[y][0]), "{'year': '%Y',  'month': '%m', 'day': '%d'}"))
+  #para listar tipos de emergencia no repetidos y contarlos
+  nremerg=[]#emergencias de cada tipo no repetidas
+  jnemergency2=list()#una copia para tener una lista de strs separados SOLO EN ARR DE STRINGS
+  countemetype=list()#aqui se depositan los numeros de ocurrencia de cada emergencia segun el orden de nremerg
+  for a in jnemergency:
+    if len(a)>1:
+      jnemergency2.append(str(a[0]))
+      jnemergency2.append(str(a[1]))
+    else:
+      jnemergency2.append(str(a[0]))
+
+  for item in jnemergency2:
+      if item not in nremerg:
+          nremerg.append(item)#para que las emergencias se muestren como unicas
+  #para obtener num de datos
+  for item in nremerg:
+    countemetype.append(jnemergency2.count(item))
+  ##print(countemetype)
+
+  return dtdate,jnemergency2,jhoursp,jnumsoc,nremerg,countemetype,jrisks
 
 
 #main
@@ -282,7 +442,7 @@ app.run(host="0.0.0.0")
 
 #https://www.iartificial.net/regresion-polinomica-en-python-con-scikit-learn/
 
-#https://scikit-learn.org/stable/auto_examples/linear_model/plot_polynomial_interpolation.html#sphx-glr-auto-examples-linear-model-plot-polynomial-interpolation-py
+#https://scikit-learn.org/stable/auto_examples/linear_model/plot_polynomial_interpolation.html#sphx-glr-auto-examples-linear-modeloPR-plot-polynomial-interpolation-py
 
 #https://colab.research.google.com/drive/1rNIUjVRzQnFcvojyzCcGQqc2r0UcGUzD#scrollTo=5xEo0-arRaZz
 #https://machinelearningmastery.com/make-predictions-scikit-learn/
