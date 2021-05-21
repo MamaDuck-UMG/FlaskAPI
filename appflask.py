@@ -25,7 +25,7 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
 from flask import Flask,jsonify,request, render_template #render template es para mostrar paginas html o js en un endpoint
 warnings.filterwarnings('ignore')
-grado=10
+grado=6
 ##funciones en crudo
 
 with open('ejemplo.json') as file:
@@ -203,12 +203,7 @@ def routinenodes():
             g.add_edge(int(sti),int(aux[s]),color='black')
     #guardo grafico
     g.save_graph('templates/graph.html')#en un archivo
-    #g.show('graph.html')
-    #HtmlFile=open('/templates/graph.html','r',encoding='utf-8')
-    #sourceCode=HtmlFile.read()
-    #components.html(sourceCode,height=400,width=1500)
-    #st.header("Monitoreo de nodos")
-    #aqui empieza la implementacion de recorrido de Grafo
+
     tag,conections,parent,mamaduck,people,timeactive,list1=DataJSONtoGraph('1')#con el nodo 1 se inicia para empezar a
     #crear los demas grafos
     n1=Nodo(tag,conections,parent,mamaduck,people,timeactive,list1)
@@ -223,10 +218,6 @@ def routinenodes():
     df=functionWhyPriority(restab)
     df.to_html('templates/analisisgrafo.html')
     return render_template('graph.html')
-#https://ichi.pro/es/paneles-en-python-para-principiantes-y-todos-los-demas-que-usan-dash-264571154097732
-
-#https://www.youtube.com/watch?v=N9yHClPGWG4
-
 def rellenofaltantes(x,y):
     x_plot = np.linspace(0,23,num=24)
     for numero in range(0,len(x_plot)):
@@ -260,29 +251,23 @@ def map():
 def profile():
     routinenodes()
     routinemap()
-  #  h=dash.Dash(dev_tools_hot_reload=True)
-   # h.scripts.config.serve_locally = True
- #   h.config['suppress_callback_exceptions'] = True
-   # h.layout=html.Div(children=[html.H1(children='Bienvenido a Mama Duck'),
-   #             html.Div(children='''Nodos conectados'''),
-    #            ])
-   # dcc.Dropdown(
-   #     id='Tabla Nodos',
-    #    options=[{'label': e, 'value': e} for e in b],
-    #    value='Tabla Nodos',
-    #    clearable=False
-  #  ),
-    
-   # dash_table.DataTable(id='Tabla Nodos')
     return render_template("profilef.html")#este html fue creado manualmente para unir las dos paginas
     #como si fueran componentes
     #h.run_server()
-@app.route("/upload_data", methods=['POST'])
+@app.route("/upload_data", methods=['POST'])#este endpoint sobreescribira el archivo ejemplo.json
+#puede sobreescribir el archivo que se esta utilizando y si no maneja el adecuado formato, las demas funciones
+#dejarar de servir
+#usarse bajo su responsabilidad
 
 #este modelo entrenará todos los métodos y cada uno los guardará en un joblib
 def upload_data():
+    req=request.get_json(force=True)
 
-    return "prueba"
+    file_name = "ejemplo.json"
+
+    with open(file_name, 'w') as file:
+        json.dump(req, file,indent=4)
+    return "Se ha registrado la base nueva"
 
 
 
@@ -293,9 +278,13 @@ def upload_data():
 def trainPR():
 
     for numeronodo in strindices:
-        _,_,c,d,_,_,_=obtencionlistasJS(str(numeronodo))#obtendre todas las variables que regresa en el orden documentado
-        c,d=rellenofaltantes(c,d)
-        regresionPolinomialNumEmergencias(c,d,"trainPR-%s"%str(numeronodo),grado)
+        _,_,x,y,_,_,_=obtencionlistasJS(str(numeronodo))#obtendre todas las variables que regresa en el orden documentado
+
+        x,y=rellenofaltantes(x,y)
+        regresionPolinomialNumEmergencias(x,y,"trainPR-%s"%str(numeronodo),grado)
+    _,_,w,z,_,_,_,_,_=obtencionlistasJSGeneral()#no requiere estar dentro del ciclo pues obtiene el analisis de todo el documento
+    w,z=rellenofaltantes(w,z)
+    regresionPolinomialNumEmergencias(w,z,"trainPRgeneral",grado)
     response={
         'message':'Todos los modelos de regresion polinomial se han creado',
         'carpeta':'modelos'
@@ -328,6 +317,8 @@ def predictPR():
             modeloPR=load('modelos/trainPR-3.joblib')
         elif nodouser==4 or nodouser=='4':
             modeloPR=load('modelos/trainPR-4.joblib')
+    elif nodouser=="general" or nodouser=="General" or nodouser=="global" or nodouser=="Global":
+        modeloPR=load('modelos/trainPRgeneral.joblib')
     else:
         res={
         'message':'Error, el nodo no existe en los registros'
@@ -341,22 +332,25 @@ def predictPR():
     x_plot = np.linspace(0,23,24)
 
     X_plot = x_plot[:, np.newaxis]
-
     y_resplot= modeloPR.predict(X_plot)
     ypred=modeloPR.predict(res_hora)
-    _,_,x,y,_,_,_=obtencionlistasJS(str(nodouser))
-
+    if nodouser.isdigit():
+        _,_,x,y,_,_,_=obtencionlistasJS(str(nodouser))
+    else:
+       _,_,x,y,_,_,_,_,_=obtencionlistasJSGeneral()
     plt.scatter(np.array(x), np.array(y), color='navy', s=30, marker='o', label="Datos historicos del nodo %s"%str(nodouser))
     plt.plot(x_plot, y_resplot, color='teal', linewidth=2,label="Polinomial grado %d" % grado)
     plt.scatter(res_hora,ypred,color="red",label="Resultado seleccionado por el usuario= hora %s:00"%horauser)
     print("Para las",horauser,"con el grado",grado,"se pronostican ",int(np.around(ypred)[0]), "llamadas de emergencia")
     plt.legend(loc='upper left')
     plt.title('Prediccion modelo polinomial',None,'center')
-    coef=0.0
-    if float(nodouser)>2:
-        coef=(float(nodouser)*0.05)+(float(nodouser)-3)*0.39
-    plt.text(1.5,-0.85+coef,"Para las %s en nodo: %s"%(horauser,nodouser)+", se pronostican %s "%int(np.around(ypred)[0])+"llamadas de emergencia")
-
+    coef=0.1
+    if nodouser.isdigit():
+        if float(nodouser)>2:
+            coef=(float(nodouser)*0.05)+(float(nodouser)-3)*0.39
+        plt.text(1.5,-0.85+coef,"Para las %s en nodo: %s"%(horauser,nodouser)+", se pronostican %s "%int(np.around(ypred)[0])+"llamadas de emergencia")
+    else:
+         plt.text(1,-1.25,"Para las %s en : %s"%(horauser,nodouser)+", se pronostican %s "%int(np.around(ypred)[0])+"llamadas de emergencia")
     plt.savefig('graficas/PR_result_%s_%s.png'%(nodouser,horauser),metadata={"title":"Prediccion de modelo polinomial"})
     plt.close()
 
@@ -439,6 +433,69 @@ def obtencionlistasJS(numnodo):
 
   return dtdate,jnemergency2,jhoursp,jnumsoc,nremerg,countemetype,jrisks
 
+def obtencionlistasJSGeneral():#obtiene los datos del json aplicado para todos los nodos, no solamente uno
+  jnemergency=list()
+  jnumsoc=list()#cuenta las ocurrencias de horas
+  jhours=list()
+  jndate=list()
+  jrisks=list()
+  for numnodo in strindices:
+      varisk=jn1.get(numnodo)[0]['risks'][0]
+      jrisks.append(varisk)
+
+  for numnodo in strindices:
+    for i in range(len(jn1.get(str(numnodo))[0]['history'])):
+      varauxem=jn1.get(str(numnodo))[0]['history'][i]['emergency']
+      jnemergency.append(varauxem)
+      varauxda=jn1.get(str(numnodo))[0]['history'][i]['date']
+      jndate.append(varauxda)
+      varauxhr=jn1.get(str(numnodo))[0]['history'][i]['hour']
+      varauxhr=int(varauxhr[0:2])
+      jhours.append(varauxhr)
+  #preproc no repetidos en jhours
+  jhoursp=[]
+  for item in jhours:
+      if item not in jhoursp:
+          jhoursp.append(item)
+  #para jnumsoc
+  for item in jhoursp:
+    jnumsoc.append(jhours.count(item))
+  #para jndate yconvertir a datetime
+  dtdate=list()
+  for y in range(len(jndate)):
+    dtdate.append(datetime.datetime.strptime(str(jndate[y][0]), "{'year': '%Y',  'month': '%m', 'day': '%d'}"))
+  #para listar tipos de emergencia no repetidos y contarlos
+  nremerg=[]#emergencias de cada tipo no repetidas
+  jnemergency2=list()#una copia para tener una lista de strs
+  countemetype=list()#aqui se depositan los numeros de ocurrencia de cada emergencia segun el orden de nremerg
+  for a in jnemergency:
+    if len(a)>1:
+      jnemergency2.append(str(a[0]))
+      jnemergency2.append(str(a[1]))
+    else:
+      jnemergency2.append(str(a[0]))
+
+  for item in jnemergency2:
+      if item not in nremerg:
+          nremerg.append(item)
+  for item in nremerg:
+    countemetype.append(jnemergency2.count(item))
+    jdays=list()#cuenta las ocurrencias de horas
+  jnums=list()
+  for s in strindices:
+    for i in range(len(jn1.get(str(s))[0]['history'])):
+      ad=jn1.get(str(s))[0]['history'][i]['date']
+      jdays.append(ad)
+  jdaystab=list()
+  for e in jdays:
+    if e not in jdaystab:
+      jdaystab.append(e)
+  for item in jdaystab:
+    jnums.append(jdays.count(item))
+  dtdate2=list()
+  for y in range(len(jdaystab)):
+    dtdate2.append(datetime.datetime.strptime(str(jdaystab[y][0]), "{'year': '%Y',  'month': '%m', 'day': '%d'}"))
+  return dtdate,jnemergency2,jhoursp,jnumsoc,nremerg,countemetype,jrisks,dtdate2,jnums
 
 #main
 app.run(host="0.0.0.0")
