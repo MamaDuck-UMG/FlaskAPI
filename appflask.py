@@ -19,7 +19,7 @@ import math #Para los infinitos
 import warnings
 import matplotlib.pyplot as plt
 from joblib import dump, load
-
+from sklearn.cluster import KMeans
 from sklearn.linear_model import Ridge#regularizacion o penalizacion del modelo
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
@@ -32,8 +32,6 @@ with open('ejemplo.json') as file:
     datajson = json.load(file)#cargamos el archivo a una variable
     jnodes=datajson.get("nodes")
     jn1=jnodes[0]#esta variable guarda todo el json, recordar que su acceso es similara a diccionaros de dict o listas
-
-
 
 strindices=[]#este string va a guardar el nombre de los nodos (las funciones get del diccionario solo aceptan strings)
 for i in range(len(jn1)):
@@ -53,12 +51,9 @@ def obtencionCoords():#obtengo las coordenadas de latitud y longitud de todos lo
     list2.append([jn1.get(str(s))[0]['localization'][0]['lat'],jn1.get(str(s))[0]['localization'][0]['long']])
   a1=np.array(list1)
   a2=np.array(list2)
-  #print(a1.reshape(-2,2))
   df1 = pd.DataFrame(
   a1,
   columns=['lat', 'lon'])
-  #return df1, df2
-  #print(a1.reshape(-2,2))
   df2 = pd.DataFrame(
   a2,
   columns=['lat', 'lon'])
@@ -183,6 +178,8 @@ def routinemap():
 
     # Render
     r = pdk.Deck(layers=[layers1,layers2], initial_view_state=view_state)
+    #to_cluster=pdk.Deck(initial_wiew_state=view_state)
+    #tocluster.to_html=('templates/mapasample.png')
     r.to_html('templates/mapa.html')
     return render_template('mapa.html')
 
@@ -269,9 +266,69 @@ def upload_data():
         json.dump(req, file,indent=4)
     return "Se ha registrado la base nueva"
 
+@app.route("/traincentroids", methods=['GET'])#este endpoint sobreescribira el archivo ejemplo.json
+def train_cluster():
+    df1,_=obtencionCoords()
+    df1.columns=["Lat","Lon"]
+    model=KMeans(n_clusters=4,random_state=12)
+    X=df1.iloc[:,0:2]#todas las filas, y las columnas 1 y 2
+    X=X.values
+    model.fit(X)#entrenamiento
+    dump(model,'modelos/clustering.joblib')
+    return "Se ha creado el modelo para clustering"
 
 
+@app.route("/clustercentroids", methods=['GET'])#este endpoint sobreescribira el archivo ejemplo.json
+def clustercentroids():
+    kmeans=load('modelos/clustering.joblib')
+    df1,_=obtencionCoords()
+    df1.columns=["Lat","Lon"]
+    y_pred= kmeans.predict(df1.iloc[:,0:2].values)
+    plt.figure(figsize=(8,6))
+    df1['pred_class']=y_pred
+    colores=["yellowgreen","teal","gold","purple"]
+    for c, samples in df1.groupby("pred_class"):#clase 0 todas las de la clase cero, clase 1, la c es una agrupacion
+        plt.scatter(x=samples.iloc[:,0],y=samples.iloc[:,1],label="Numero de nodo: "+str(c+1),c=colores[c])#estoy seleccionando la columna comleta de dos
+    plt.legend()
+    plt.grid(True)#con cuadricula
 
+    listc=list()
+
+    C = kmeans.cluster_centers_ #el modelo ya me calcula los centoides de los datos
+    plt.scatter(C[:, 0], C[:, 1], marker='*', s=500,c=colores)
+    for i in range(kmeans.n_clusters): 
+        listc.append([C[i,0],C[i,1]])
+    dfc=pd.DataFrame(listc,columns=["lat","lon"])#se guardan latitudes y longitudes, sustituyendo a df2
+    print(listc)
+    layers1=pdk.Layer(
+            'HexagonLayer',#puntos en forma de hexagono, es para nodos
+            data=dfc,#aqui obtengo datos de lat y lon
+            get_position='[lon, lat]',
+            radius=3,
+            elevation_scale=4,
+            elevation_range=[0, 10],
+            pickable=True,
+            extruded=True,
+            auto_highlight=True,
+            coverage=1
+        )
+
+    view_state=pdk.ViewState(
+        latitude=20.63494981128319,#lat y lon inicial 
+        longitude=-103.40648023281342,
+        zoom=16,
+        pitch=40.5,
+        bearing=-27.36
+    )
+
+    # Render
+    r = pdk.Deck(layers=layers1, initial_view_state=view_state)
+    r.to_html('templates/centroides.html')
+    #plt.show()
+    #plt.imshow(background, alpha = 0.15)
+    plt.savefig("centroides.png")
+    return render_template('centroides.html')
+#print(dfc)
 @app.route("/trainNumEmergencias", methods=['GET'])
 
 #este modelo entrenará todos los métodos y cada uno los guardará en un joblib
