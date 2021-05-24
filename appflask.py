@@ -1,11 +1,5 @@
-﻿#import streamlit as st #funciones generales de streamlit
-from bokeh.plotting import figure as grafica #para mostrar graficas de lineas
-import plotnine as p9 #pip install plotnine, para graficas de puntos y de lineas
-from bokeh.models import ColumnDataSource#para importar datos de tablas
-from PIL import Image #para abrir imagenes
-import numpy as np#para arrays
+﻿import numpy as np#para arrays
 import pandas as pd#para dataframes
-import streamlit.components.v1 as components#para importar y exportar elementos de archivos
 import pydeck as pdk#para los mapas 
 import datetime#libreria para usar formatos de fechas 
 import json#libreria para usar json
@@ -13,17 +7,16 @@ import matplotlib.pyplot as plt
 from pyvis import network as net
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score  
 from queue import PriorityQueue #libreria colas de prioridad
 import math #Para los infinitos
 import warnings
-import matplotlib.pyplot as plt
 from joblib import dump, load
 from sklearn.cluster import KMeans
 from sklearn.linear_model import Ridge#regularizacion o penalizacion del modelo
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
-from flask import Flask,jsonify,request, render_template #render template es para mostrar paginas html o js en un endpoint
+import dataframe_image as dfi
+from flask import Flask,jsonify,request, render_template, send_file #render template es para mostrar paginas html o js en un endpoint
 warnings.filterwarnings('ignore')
 grado=6
 ##funciones en crudo
@@ -59,8 +52,6 @@ def obtencionCoords():#obtengo las coordenadas de latitud y longitud de todos lo
   columns=['lat', 'lon'])
   #return df1, df2
   return df1,df2
-
-
 #RUTINA DE NODOS
 class Nodo:#estructura de Nodo para recorrido de nodos
     w=None
@@ -86,9 +77,6 @@ class Nodo:#estructura de Nodo para recorrido de nodos
             tag,conections,parent,mamaduck,people,timeactive,list1=DataJSONtoGraph(i)
             ady.append(Nodo(tag, conections, self, mamaduck, people, timeactive,list1))
         return ady  # retornamos los adyacentes o hijos del nodo expandido
-
-
-
 
     #funcion realizada el primer parcial de IA: recorrido de nodos por prioridad
 def recorridonodos(n1):  # recibe una cadena de valores
@@ -124,11 +112,59 @@ def functionWhyPriority(result):#muestra detalles de los nodos visitados
             ismd="Sí"
         else:
             ismd="No"
-    chart.append([u.tag,u.conexiones,ismd,u.h,u.adyacentes])
+        chart.append([u.tag,u.conexiones,ismd,u.h,u.adyacentes])
     df=pd.DataFrame(chart)#Creo un dataframe de Pandas para ilustrar la info en una tabla
     df.columns = ["No. de nodo", "No. nodos conectados", "Es Mamaduck?","Llamadas recibidas","Adyacentes"]
     #st.write(df)
     return df
+
+def RegresionLogML():#algoritmo modelado para Regresion Logistica y Aprendizaje de Maquina
+
+    '''porcentaje + 0= medic
+    porcentaje + 1=fire
+    porcentaje +2=security
+    porcentaje +3=sos
+    porcentaje +4=refuge
+    porcentaje +5= others'''
+    #datos de ejemplo, cada tupla posee porcentaje de ocurrencia de eventos en emergencias vs Indice de riesgo particular del nodo
+    X=[[0.8,6],[0.8,7],[0.8,8],[0.8,9],[0.8,10],
+    [0.7,6],[0.7,7],[0.7,8],[0.7,9],[0.7,10],
+    [0.6,6],[0.6,7],[0.6,8],[0.6,9],[0.6,10],
+    [0.9,6],[0.9,7],[0.9,8],[0.9,9],[0.9,10],
+    [1,6],[1,7],[1,8],[1,9],[1,10],
+    [1.6,6],[1.6,7],[1.6,8],[1.6,9],[1.6,10],
+    [1.7,6],[1.7,7],[1.7,8],[1.7,9],[1.7,10],
+    [1.8,6],[1.8,7],[1.8,8],[1.8,9],[1.8,10],
+    [1.9,6],[1.9,7],[1.9,8],[1.9,9],[1.9,10],
+    [2,6],[2,7],[2,8],[2,9],[2,10],
+    [2.6,6],[2.6,7],[2.6,8],[2.6,9],[2.6,10],
+    [2.7,6],[2.7,7],[2.7,8],[2.7,9],[2.7,10],
+    [2.8,6],[2.8,7],[2.8,8],[2.8,9],[2.8,10],
+    [2.9,6],[2.9,7],[2.9,8],[2.9,9],[2.9,10],
+    [3,6],[3,7],[3,8],[3,9],[3,10],
+    [3.6,6],[3.6,7],[3.6,8],[3.6,9],[3.6,10],
+    [3.7,6],[3.7,7],[3.7,8],[3.7,9],[3.7,10],
+    [3.8,6],[3.8,7],[3.8,8],[3.8,9],[3.8,10],
+    [3.9,6],[3.9,7],[3.9,8],[3.9,9],[3.9,10],
+    [4,6],[4,7],[4,8],[4,9],[4,10],
+    ]
+    y=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]
+    #y es los resultados de acuerdo al tipo de emergencia
+    #Los formatos estanbasados en IRIS en ML
+    df=pd.DataFrame(X,columns=["%+type","Risk index"])
+    y=np.array(y)
+    df['Propenso a']=y#random.state=num
+    X_train,_,y_train,_=train_test_split(X,y,test_size=0.20)#aqui se pone en practica que el testing solo sera 20%
+    model=LogisticRegression().fit(X_train,y_train)
+    dump(model,'modelos/modeloLogisticR.joblib')
+    response={
+        'message':'El modelo ha sido generado: joblib',
+        'archivo':'modeloLogisticR.joblib'
+    }
+    return jsonify(response)
+
+
+
 def DataJSONtoGraph(numnodo):#funcion para extraer datos de acuerdo con el formato del algoritmo de recorrido
     #exclusivo para algoritmo de recorrido
     ismamaduck=False
@@ -142,13 +178,8 @@ def DataJSONtoGraph(numnodo):#funcion para extraer datos de acuerdo con el forma
     return int(numnodo),numConected,None,ismamaduck,numcalls,activetime,adys
 ##funciones en crudo
 def routinemap():
-        #st.header("Mapa de nodos y emergencias")
-    #st.write("Hexagonos: ubicacion de nodos, Círculo verde: casos de emergencia")
+
     df1,df2=obtencionCoords()
-    # if st.checkbox('Mostrar tabla de coordenadas de emergencia'):
-    #   st.write(df1)
-    #  if st.checkbox('Mostrar tabla de coordenadas de Nodos'):
-    #    st.write(df2)
     view_state=pdk.ViewState(
         latitude=20.63494981128319,#lat y lon inicial 
         longitude=-103.40648023281342,
@@ -156,19 +187,8 @@ def routinemap():
         pitch=40.5,
         bearing=-27.36
     )
-    layers1=pdk.Layer(
-            'HexagonLayer',#puntos en forma de hexagono, es para nodos
-            data=df2,#aqui obtengo datos de lat y lon
-            get_position='[lon, lat]',
-            radius=3,
-            elevation_scale=4,
-            elevation_range=[0, 10],
-            pickable=True,
-            extruded=True,
-            auto_highlight=True,
-            coverage=1
-        )
-    layers2= pdk.Layer(
+
+    layers1= pdk.Layer(
             'ScatterplotLayer',#puntos, es para emergencias
             data=df1,#aqui obtengo datos de lat y lon
             get_position='[lon, lat]',
@@ -177,7 +197,7 @@ def routinemap():
         )
 
     # Render
-    r = pdk.Deck(layers=[layers1,layers2], initial_view_state=view_state)
+    r = pdk.Deck(layers=layers1, initial_view_state=view_state)
     #to_cluster=pdk.Deck(initial_wiew_state=view_state)
     #tocluster.to_html=('templates/mapasample.png')
     r.to_html('templates/mapa.html')
@@ -201,19 +221,7 @@ def routinenodes():
     #guardo grafico
     g.save_graph('templates/graph.html')#en un archivo
 
-    tag,conections,parent,mamaduck,people,timeactive,list1=DataJSONtoGraph('1')#con el nodo 1 se inicia para empezar a
-    #crear los demas grafos
-    n1=Nodo(tag,conections,parent,mamaduck,people,timeactive,list1)
-    res,restab=recorridonodos(n1)#iniciamos el algoritmo de A estrella en una variable de objeto
-    print("El Nodo: %d "%res[1],"requiere ser monitoreado prioritariamente.")#en res 1 está el nodo elegido como prioritario, esta función imprimirá el porqué primero este y porque los demas
-    #st.header("Orden de prioridad")
-    print(res)
-    #if st.button("Más detalles..."):
-        #if not restab and not res:
-        #st.write("Primero presione en el botón de Monitoreo de nodos para presentarle detalles")
-        #else:
-    df=functionWhyPriority(restab)
-    df.to_html('templates/analisisgrafo.html')
+
     return render_template('graph.html')
 def rellenofaltantes(x,y):
     x_plot = np.linspace(0,23,num=24)
@@ -224,33 +232,42 @@ def rellenofaltantes(x,y):
     return x,y
 
 app=Flask(__name__)
-@app.route("/main")
-def index():
-    #return render_template('bienvenido.html')#la plantilla que tenga de bienvenida en templates
-    #image = Image.open('duck.png')#abro el ícono de Mama Duck
-    print("Bienvenido a Mama Duck")#encabezado
-    var=open('templates/output_file.txt')
-    print(var.read())
-    #st.image(image, caption='Mama Duck',width=80)#subo la imagen con su tamaño y pie de foto
-    #importamos el json que es actualmente un archivo de ejemplo
-    return str(len(jn1.get("1")[0]['history']))
-#flask logica streamlit api rest
-#paquete dash python
+
+#flask logica api rest, streamlit por separado pero tambien utilizandose en server
+#paquete dash python y darle estructura a cada elemento
 #D3JS javascript
+@app.route("/nodestrajectory",methods=['GET'])
+def nodestrajectory():
+    tag,conections,parent,mamaduck,people,timeactive,list1=DataJSONtoGraph('1')#con el nodo 1 se inicia para empezar a
+    #crear los demas grafos
+    n1=Nodo(tag,conections,parent,mamaduck,people,timeactive,list1)
+    res,restab=recorridonodos(n1)#iniciamos el algoritmo de A estrella en una variable de objeto
+    frase="El Nodo: %d "%res[1],"requiere ser monitoreado prioritariamente."#en res 1 está el nodo elegido como prioritario, esta función imprimirá el porqué primero este y porque los demas
+    #st.header("Orden de prioridad")
+    print(res)
+    df=functionWhyPriority(restab)
+    df_styled = df.style.background_gradient()
+    dfi.export(df_styled,"analisisgrafo.png")
+    return send_file("analisisgrafo.png")
 @app.route("/nodes",methods=['GET'])
-def analytics():
+def nodes():
     return routinenodes()
+###########
+@app.route("/obtenerCentroidesrender",methods=['GET'])
+def obtenerCentroidesrender():
+    filename="coordenadascentroides.png"
+    return send_file(filename)
+
+@app.route("/obtenerCentroidesgraph",methods=['GET'])
+def obtenerCentroidesgraph():
+    filename="centroides.png"
+    return send_file(filename)
+
 
 @app.route("/map", methods=['GET'])
 def map():
     return routinemap()
-@app.route("/profile", methods=['GET'])
-def profile():
-    routinenodes()
-    routinemap()
-    return render_template("profilef.html")#este html fue creado manualmente para unir las dos paginas
-    #como si fueran componentes
-    #h.run_server()
+
 @app.route("/upload_data", methods=['POST'])#este endpoint sobreescribira el archivo ejemplo.json
 #puede sobreescribir el archivo que se esta utilizando y si no maneja el adecuado formato, las demas funciones
 #dejarar de servir
@@ -265,24 +282,47 @@ def upload_data():
     with open(file_name, 'w') as file:
         json.dump(req, file,indent=4)
     return "Se ha registrado la base nueva"
+@app.route("/predictemtype", methods=['POST'])
+def predictemtype():#prototipo
+    req=request.get_json(force=True)
+    topred=req['test']
+    model=load('modelos/modeloLogisticR.joblib')
+    y_pred=model.predict(np.array(topred).reshape(1,-1))
+    if y_pred[0]==0:#dependiendo de los valores que de, va a ser el tipo de emergencia, fue documentado previamente
+        nem='medic'
+    elif y_pred[0]==1:
+        nem='fire'
+    elif y_pred[0]==2:
+        nem='security'
+    elif y_pred[0]==3:
+        nem='sos'
+    else:
+        nem='other'#falta entrenarlo con otros tipos de emergencia aparte de los mencionados
+    response={
+        'message':'La emergencia con mayor ocurrencia en el nodo es: " %s"'%nem
+    }
+    return jsonify(response)
+
+
 
 @app.route("/traincentroids", methods=['GET'])#este endpoint sobreescribira el archivo ejemplo.json
 def train_cluster():
     df1,_=obtencionCoords()
     df1.columns=["Lat","Lon"]
-    model=KMeans(n_clusters=4,random_state=12)
+    model=KMeans(n_clusters=len(strindices),random_state=12)
     X=df1.iloc[:,0:2]#todas las filas, y las columnas 1 y 2
     X=X.values
     model.fit(X)#entrenamiento
     dump(model,'modelos/clustering.joblib')
     return "Se ha creado el modelo para clustering"
 
-
-@app.route("/clustercentroids", methods=['GET'])#este endpoint sobreescribira el archivo ejemplo.json
+@app.route("/clustercentroids", methods=['GET'])
 def clustercentroids():
     kmeans=load('modelos/clustering.joblib')
     df1,_=obtencionCoords()
     df1.columns=["Lat","Lon"]
+    df1cpy=df1.iloc[:,[0,1]]
+
     y_pred= kmeans.predict(df1.iloc[:,0:2].values)
     plt.figure(figsize=(8,6))
     df1['pred_class']=y_pred
@@ -299,8 +339,15 @@ def clustercentroids():
     for i in range(kmeans.n_clusters): 
         listc.append([C[i,0],C[i,1]])
     dfc=pd.DataFrame(listc,columns=["lat","lon"])#se guardan latitudes y longitudes, sustituyendo a df2
-    print(listc)
-    layers1=pdk.Layer(
+    #print(listc)
+    layers2= pdk.Layer(
+            'ScatterplotLayer',#puntos, es para emergencias
+            data=df1cpy,#aqui obtengo datos de lat y lon
+            get_position='[Lon, Lat]',
+            get_color='[100, 230, 0, 160]',
+            get_radius=2,
+        )
+    layers1= pdk.Layer(
             'HexagonLayer',#puntos en forma de hexagono, es para nodos
             data=dfc,#aqui obtengo datos de lat y lon
             get_position='[lon, lat]',
@@ -313,6 +360,7 @@ def clustercentroids():
             coverage=1
         )
 
+
     view_state=pdk.ViewState(
         latitude=20.63494981128319,#lat y lon inicial 
         longitude=-103.40648023281342,
@@ -322,15 +370,17 @@ def clustercentroids():
     )
 
     # Render
-    r = pdk.Deck(layers=layers1, initial_view_state=view_state)
+    print(df1cpy)
+    r = pdk.Deck(layers=[layers1,layers2], initial_view_state=view_state)
     r.to_html('templates/centroides.html')
     #plt.show()
     #plt.imshow(background, alpha = 0.15)
     plt.savefig("centroides.png")
+    dfi.export(dfc,"coordenadascentroides.png")
+
     return render_template('centroides.html')
 #print(dfc)
 @app.route("/trainNumEmergencias", methods=['GET'])
-
 #este modelo entrenará todos los métodos y cada uno los guardará en un joblib
 def trainPR():
 
@@ -342,18 +392,31 @@ def trainPR():
     _,_,w,z,_,_,_,_,_=obtencionlistasJSGeneral()#no requiere estar dentro del ciclo pues obtiene el analisis de todo el documento
     w,z=rellenofaltantes(w,z)
     regresionPolinomialNumEmergencias(w,z,"trainPRgeneral",grado)
+    RegresionLogML()
     response={
-        'message':'Todos los modelos de regresion polinomial se han creado',
+        'message':'Todos los modelos de regresion polinomial y logistica se han creado',
         'carpeta':'modelos'
     }
     return jsonify(response)
+
+@app.route("/getpng", methods=['POST'])
+#este modelo entrenará todos los métodos y cada uno los guardará en un joblib
+def getpng():
+    req=request.get_json(force=True)
+    #datos del json POST
+        #node:1/general
+        #hour:16
+    nodouser=req['node']
+    horauser=req['hour']
+    filename="graficas/PR_result_%s_%s.png"%(nodouser,horauser)
+    return send_file(filename)
 
 @app.route("/predictNumEmergencias", methods=['POST'])
 def predictPR():
     #descerializar
     req=request.get_json(force=True)
     #datos del json POST
-        #node:1
+        #node:1/general
         #hour:16
     nodouser=req['node']
     horauser=req['hour']
@@ -556,10 +619,3 @@ def obtencionlistasJSGeneral():#obtiene los datos del json aplicado para todos l
 
 #main
 app.run(host="0.0.0.0")
-
-#https://www.iartificial.net/regresion-polinomica-en-python-con-scikit-learn/
-
-#https://scikit-learn.org/stable/auto_examples/linear_model/plot_polynomial_interpolation.html#sphx-glr-auto-examples-linear-modeloPR-plot-polynomial-interpolation-py
-
-#https://colab.research.google.com/drive/1rNIUjVRzQnFcvojyzCcGQqc2r0UcGUzD#scrollTo=5xEo0-arRaZz
-#https://machinelearningmastery.com/make-predictions-scikit-learn/
