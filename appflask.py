@@ -10,6 +10,7 @@ from sklearn.model_selection import train_test_split
 from queue import PriorityQueue #libreria colas de prioridad
 import math #Para los infinitos
 import warnings
+from PIL import Image #para abrir imagenes
 from joblib import dump, load
 from sklearn.cluster import KMeans
 from sklearn.linear_model import Ridge#regularizacion o penalizacion del modelo
@@ -279,9 +280,9 @@ def upload_data():
 
     file_name = "ejemplo.json"
 
-    with open(file_name, 'w') as file:
-        json.dump(req, file,indent=4)
-    return "Se ha registrado la base nueva"
+    with open(file_name, 'w') as f:
+        json.dump(req, f)
+    return send_file(file_name)
 @app.route("/predictemtype", methods=['POST'])
 def predictemtype():#prototipo
     req=request.get_json(force=True)
@@ -326,7 +327,7 @@ def clustercentroids():
     y_pred= kmeans.predict(df1.iloc[:,0:2].values)
     plt.figure(figsize=(8,6))
     df1['pred_class']=y_pred
-    colores=["yellowgreen","teal","gold","purple"]
+    colores=["yellowgreen","teal","purple","blue"]
     for c, samples in df1.groupby("pred_class"):#clase 0 todas las de la clase cero, clase 1, la c es una agrupacion
         plt.scatter(x=samples.iloc[:,0],y=samples.iloc[:,1],label="Numero de nodo: "+str(c+1),c=colores[c])#estoy seleccionando la columna comleta de dos
     plt.legend()
@@ -370,7 +371,7 @@ def clustercentroids():
     )
 
     # Render
-    print(df1cpy)
+    #print(df1cpy)
     r = pdk.Deck(layers=[layers1,layers2], initial_view_state=view_state)
     r.to_html('templates/centroides.html')
     #plt.show()
