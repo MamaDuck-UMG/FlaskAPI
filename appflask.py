@@ -268,7 +268,10 @@ def obtenerCentroidesgraph():
 @app.route("/map", methods=['GET'])
 def map():
     return routinemap()
+@app.route("/", methods=['GET'])
+def main():
 
+    return send_file('templates/output_file.txt')
 @app.route("/upload_data", methods=['POST'])#este endpoint sobreescribira el archivo ejemplo.json
 #puede sobreescribir el archivo que se esta utilizando y si no maneja el adecuado formato, las demas funciones
 #dejarar de servir
@@ -377,6 +380,8 @@ def clustercentroids():
     #plt.show()
     #plt.imshow(background, alpha = 0.15)
     plt.savefig("centroides.png")
+    plt.clf()
+    plt.close()
     dfi.export(dfc,"coordenadascentroides.png")
 
     return render_template('centroides.html')
@@ -473,6 +478,7 @@ def predictPR():
     else:
          plt.text(1,-1.25,"Para las %s en : %s"%(horauser,nodouser)+", se pronostican %s "%int(np.around(ypred)[0])+"llamadas de emergencia")
     plt.savefig('graficas/PR_result_%s_%s.png'%(nodouser,horauser),metadata={"title":"Prediccion de modelo polinomial"})
+    plt.clf()
     plt.close()
 
     response={
