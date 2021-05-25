@@ -1,0 +1,11 @@
+dataframe-image
+pandas
+numpy
+scikit-learn
+pyvis
+pydeck
+matplotlib
+scikit-learn
+sklearn
+Pillow
+joblib
